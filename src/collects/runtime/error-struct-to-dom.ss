@@ -179,7 +179,7 @@
        
        [(moby-error-type:branch-value-not-boolean? error-type)
         `(span ((class "Error-BranchValueNotBoolean"))
-               "I expected the answer's value to be a boolean expression, "
+               "I expected the question's value to be a boolean expression, "
                "(" 
                ,(scheme-value-to-dom-sexp true)
                " or " 
@@ -192,12 +192,12 @@
        
        [(moby-error-type:if-too-few-elements? error-type)
         `(span ((class "Error-IfTooFewElements"))
-               "I expected a test, a consequent, and an alternative, "
-               "but I don't see all these three.")]
+               "I expected a test, a consequence, and an alternative, "
+               "but I don't see all three.")]
        
        [(moby-error-type:if-too-many-elements? error-type)
         `(span ((class "Error-IfTooFewElements"))
-               "I expected only a test, a consequent, and an alternative, "
+               "I expected only a test, a consequence, and an alternative, "
                "but I see more than three of these.")]
        
        [(moby-error-type:application-arity? error-type)
