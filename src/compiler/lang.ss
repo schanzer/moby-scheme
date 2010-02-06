@@ -9,8 +9,10 @@
          scheme/contract
          lang/htdp-advanced
          (for-syntax scheme/base)
+         "../collects/runtime/stx.ss"
          "../collects/runtime/error-struct.ss"
-         "../collects/runtime/error-struct-to-dom.ss")
+         "../collects/runtime/error-struct-to-dom.ss"
+         "../collects/runtime/dom-helpers.ss")
 
 
 (provide (except-out (all-from-out lang/htdp-advanced)
@@ -112,13 +114,28 @@
 
 (base:define-struct (moby-failure exn:fail) (val))
 
+
+
+
+(define (Loc->string a-loc)
+  (format "Location: line ~a, column ~a, span ~a, offset ~a, id ~s" 
+          (Loc-line a-loc)
+          (Loc-column a-loc)
+          (Loc-span a-loc)
+          (Loc-offset a-loc)
+          (Loc-id a-loc)))
+
+
 (define-syntax (my-raise stx)
   (syntax-case stx ()
     [(_ val)
      (syntax/loc stx
-       (base:raise (make-moby-failure (base:format "~s" (if (moby-error? val)
-                                                            (moby-error-struct-to-dom-sexp val)
-                                                            val))
+       (base:raise (make-moby-failure (base:format "~a" 
+                                                   (if (moby-error? val)
+                                                       (string-append (dom-string-content (error-struct->dom-sexp val false))
+                                                                      "\n"
+                                                                      (Loc->string (moby-error-location val)))
+                                                       val))
                                       (base:current-continuation-marks) 
                                       val)))]))
 

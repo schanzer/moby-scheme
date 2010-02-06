@@ -483,8 +483,8 @@
                                     "     if (" predicate-name" (obj)) {\n"
                                     "        return obj." (symbol->string (identifier->munged-java-identifier (stx-e a-field))) ";\n"
                                     "     } else {\n"
-                                    "        throw new plt.Kernel.MobyRuntimeError("
-                                    "            plt.Kernel.format('" (make-unmunged-accessor-name (stx-e a-field)) ": not a " (symbol->string (stx-e id)) ": ~s', [obj]));\n"
+                                    "        plt.types.throwMobyError(false, \"make-moby-error-type:generic-runtime-error\", "
+                                    "            [plt.Kernel.format('" (make-unmunged-accessor-name (stx-e a-field)) ": not a " (symbol->string (stx-e id)) ": ~s', [obj])]);\n"
                                     "     }\n"
                                     "};\n"))
                    fields)
@@ -500,8 +500,8 @@
                                      "		obj." (symbol->string (identifier->munged-java-identifier (stx-e a-field))) " = newVal;\n"
                                      "           obj._fields[" (number->string an-index) "] = newVal;"
                                      "     } else {\n"
-                                     "        throw new plt.Kernel.MobyRuntimeError("
-                                     "            plt.Kernel.format('" (make-mutator-name (stx-e a-field)) ": not a " (symbol->string (stx-e id)) ": ~s', [obj]));\n"
+                                     "        plt.types.throwMobyError(false, \"make-moby-error-type:generic-runtime-error\", "
+                                     "            [plt.Kernel.format('" (make-mutator-name (stx-e a-field)) ": not a " (symbol->string (stx-e id)) ": ~s', [obj])]);\n"
                                      "     }\n"
                                      "};\n"))
                     fields)

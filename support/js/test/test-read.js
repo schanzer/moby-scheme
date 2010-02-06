@@ -1,13 +1,19 @@
+// FIXME: need support for piped symbols.
+
 
 
 function init() {
 
     var locOffset = function(loc) {
-	return Loc_dash_offset(loc);
+	return plt.types.NumberTower.toFixnum(
+	    plt.Kernel.invokeModule(
+		"moby/runtime/stx").EXPORTS.Loc_dash_offset(loc));
     }
-
+    
     var locSpan = function(loc) {
-	return Loc_dash_span(loc);
+	return plt.types.NumberTower.toFixnum(
+	    plt.Kernel.invokeModule(
+		"moby/runtime/stx").EXPORTS.Loc_dash_span(loc));
     }
 
 
@@ -29,10 +35,17 @@ function init() {
 	    } else {
 		return false;
 	    }
-	} else if (!isArray(x) && !isArray(y)) {
-	    return x == y;         
-	} else {
-	    return false;
+	} else if (typeof(x) === 'object' && typeof(y) === 'object') {
+	    for (var key in x) {
+		if (x[key] !== y[key]) { return false; }
+	    }
+	    for (var key in y) {
+		if (y[key] !== x[key]) { return false; }
+	    }
+	    return true;
+	}
+	else {
+	    return x === y;
 	}
     }
 
@@ -44,17 +57,19 @@ function init() {
     }
 
     var stxToDatum = function(aStx) {
-	return stx_dash__greaterthan_datum(aStx);
+	return plt.Kernel.invokeModule(
+	    "moby/runtime/stx").EXPORTS.stx_dash__greaterthan_datum(aStx);
     }
 
     var tokenize = function(s) {
-	var tokensAndLocs = plt.reader.tokenize(s)[0];
+	var tokensAndLocs = plt.reader.tokenize(s, "test case")[0];
 	var result = [];
 	for (var i = 0; i < tokensAndLocs.length; i++) {
-	    result.push([tokensAndLocs[i][0], tokensAndLocs[i][1]]);
+	    result.push({type: tokensAndLocs[i].type, 
+			 text: tokensAndLocs[i].text});
 	}
 
-	return [result, plt.reader.tokenize(s)[1]];
+	return [result, plt.reader.tokenize(s, "test case")[1]];
     }
 
     var read = function(s) {
@@ -77,45 +92,49 @@ function init() {
 	teardown: function() {},
 	
 	testTokenizeNegativeNumber: function() {
-	    this.assert(isEqual(tokenize("-7.1"),
-		                [[["number", "-7.1"]], ""]));
-	    this.assert(isEqual(tokenize("-0.1"),
-		                [[["number", "-0.1"]], ""]));
-	    this.assert(isEqual(tokenize("-.1"),
-		                [[["number", "-.1"]], ""]));
+ 	    this.assert(isEqual(tokenize("-7.1"),
+ 		                [[{type: "number", text: "-7.1"}], ""]));
+ 	    this.assert(isEqual(tokenize("-0.1"),
+ 		                [[{type: "number", text: "-0.1"}], ""]));
+ 	    this.assert(isEqual(tokenize("-.1"),
+ 		                [[{type: "number", text: "-.1"}], ""]));
 	},
 
-	testTokenizeSymbol: function() {
-	    this.assert(isEqual(tokenize("hello"),
-				[[["symbol", "hello"]], ""]));
-	},
 
-	testTokenizeSymbol2: function() {
-	    this.assert(isEqual(tokenize("1st"),
-				[[["symbol", "1st"]], ""]));
-	},
 
-	testTokenizeSimpleList: function() {
-	    this.assert(isEqual(tokenize("(hello world)"),
-				[[["(", "("],
-				  ["symbol", "hello"],
-				  ["symbol", "world"],
-				  [")", ")"]], ""]));
-	},
+ 	testTokenizeSymbol: function() {
+ 	    this.assert(isEqual(tokenize("hello"),
+ 				[[{type: "symbol", text: "hello"}], ""]));
+ 	},
 
-	testTokenizeSimpleListAndString: function() {
-	    this.assert(isEqual(tokenize("(hello \"world\")"),
-				[[["(", "("],
-				  ["symbol", "hello"],
-				  ["string", "world"],
-				  [")", ")"]], ""]));
-	},
+ 	testTokenizeSymbol2: function() {
+ 	    this.assert(isEqual(tokenize("1st"),
+ 				[[{type: "symbol", text: "1st"}], ""]));
+ 	},
 
-	testTokenizeRational: function() {
-	    this.assert(isEqual(tokenize("1/2"),
-				[[["number", "1/2"]],
+ 	testTokenizeSimpleList: function() {
+ 	    this.assert(isEqual(tokenize("(hello world)"),
+ 				[[{type: "(", text: "("},
+ 				  {type: "symbol", text: "hello"},
+ 				  {type: "symbol", text: "world"},
+ 				  {type: ")", text: ")"}],
 				 ""]));
-	},
+ 	},
+
+ 	testTokenizeSimpleListAndString: function() {
+ 	    this.assert(isEqual(tokenize("(hello \"world\")"),
+ 				[[{type: "(", text: "("},
+ 				  {type:"symbol", text:"hello"},
+ 				  {type:"string", text:"world"},
+ 				  {type:")", text:")"}],
+				 ""]));
+ 	},
+
+ 	testTokenizeRational: function() {
+ 	    this.assert(isEqual(tokenize("1/2"),
+ 				[[{type: "number", text:"1/2"}],
+ 				 ""]));
+ 	},
 
 
 	
@@ -125,11 +144,10 @@ function init() {
 					   empty)));
 	},
 
-	testReadRational: function() {
-	    this.assert(schemeIsEqual(read("1"),
-				      cons(number(1), empty)));
-	    
-	},
+ 	testReadRational: function() {
+ 	    this.assert(schemeIsEqual(read("1"),
+ 				      cons(number(1), empty)));	    
+ 	},
 
 	testReadRational2: function() {
 	    this.assert(schemeIsEqual(read("3/4"),
@@ -292,49 +310,117 @@ function init() {
 
 
 	testErrorLocsExtraParen : function() {
-	    this.assertRaise("MobyParserError", function() { read("   ())") });
-	    try {
-		read("   ())");
-	    } catch (e) {
-		this.assertEqual(5, locOffset(e.loc));
-	    }
+	    this.assertMobyRaise(isClosingParenthesisBeforeOpener,
+				 function() { read("   ())"); });
+
+	    this.assertMobyRaise(isClosingParenthesisBeforeOpener,
+				 function() { read("    (((()))[])]") },
+				"failure to match");
+
+ 	    try {
+ 		read("   ())");
+ 	    } catch (e) {
+ 		this.assertEqual(5, locOffset(mobyErrorLoc(e)), "offset mismatch");
+ 		this.assertEqual(1, locSpan(mobyErrorLoc(e)), "span mismatch");
+ 	    }
 	},
 
+	testErrorUnrecognizedToken: function() {
+	    // FIXME: I don't know how to test this yet, given that almost
+	    // everything is a valid token.
+// 	    this.assertMobyRaise(isUnrecognizedLexicalToken,
+// 				 function() { read(""); })
+	},
 
+	
+	
 	testErrorLocsUnclosedParen : function() {
-	    this.assertRaise("MobyParserError", function() { read("    (") });
+	    this.assertMobyRaise(isUnclosedParentheses,
+				 function() { read("    (") },
+				"failure to match");
+
+	    this.assertMobyRaise(isUnclosedParentheses,
+				 function() { read("    ((()))(") },
+				"failure to match");
+
+
+	    this.assertMobyRaise(isUnclosedParentheses,
+				 function() { read("    (((()))[]") },
+				"failure to match");
+
+	    this.assertMobyRaise(isUnclosedParentheses,
+				 function() { read("   ( foo bar") },
+				"failure to match");
+
+
+
 	    try {
 		read("    (");
 	    } catch (e) {
-		this.assertEqual(4, locOffset(e.loc));
+		this.assertEqual(4, locOffset(mobyErrorLoc(e)));
+		this.assertEqual(1, locSpan(mobyErrorLoc(e)));
 	    }
+
+	    try {
+		read("       (blah");
+	    } catch (e) {
+		this.assertEqual(7, locOffset(mobyErrorLoc(e)));
+		this.assertEqual(1, locSpan(mobyErrorLoc(e)));
+	    }
+
+	},
+
+	testUnclosedLexicalToken : function() {
+	    this.assertMobyRaise(isUnclosedLexicalToken,
+				 function() { read("hello \"world"); });
+
+	    try {
+		read("    \"world");
+	    } catch (e) {
+		this.assertEqual(4, locOffset(mobyErrorLoc(e)));
+		this.assertEqual(1, locSpan(mobyErrorLoc(e)));
+	    }
+ 	    this.assertMobyRaise(isUnclosedLexicalToken,
+ 				 function() { read("hello #| world"); });
 	},
 
 	testErrorLocsMismatching : function() {
-	    this.assertRaise("MobyParserError", function() { read(" (]") });
+	    this.assertMobyRaise(isUnbalancedParenthesis,
+				 function() { read(" (]") });
+
+	    this.assertMobyRaise(isUnbalancedParenthesis,
+				 function() { read(" {]") });
+
+	    this.assertMobyRaise(isUnbalancedParenthesis,
+				 function() { read(" (}") });
+
+	    read("{}");
+
 	    try {
 		read(" (]");
 	    } catch (e) {
-		this.assertEqual(2, locOffset(e.loc));
+		this.assertEqual(1, locOffset(mobyErrorLoc(e)));
+		this.assertEqual(2, locOffset(mobyErrorType(e).other_dash_location));
 	    }
 	}, 
 
 	testReadDotError: function() {
-	    this.assertRaise("MobyParserError",
-			     function() { read(".") });
+	    this.assertMobyRaise(isUnsupportedLexicalToken,
+				 function() { read(".") });
 
-	    this.assertRaise("MobyParserError",
-			     function() { read("(define f (lambda (x . y) y))"); });
+	    this.assertMobyRaise(isUnsupportedLexicalToken,
+				 function() { 
+				     read("(define f (lambda (x . y) y))"); });
 	},
 
 
 	testReadHashCommentError: function() {
-	    this.assertRaise("MobyParserError",
-			     function() { read("(hello #;") });
+	    this.assertMobyRaise(isMissingExpression,
+				 function() { read("(hello #;") });
 	    try {
 		read("(hello #;");
 	    } catch (e) {
-		this.assertEqual(7, locOffset(e.loc));
+		this.assertEqual(7, locOffset(mobyErrorLoc(e)));
 	    }
 
 	},

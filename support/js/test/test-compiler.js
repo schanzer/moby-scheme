@@ -37,7 +37,6 @@ function init() {
 
 
 
-
     return new Test.Unit.Runner({
 	setup: function() {},
 	
@@ -100,6 +99,19 @@ function init() {
 				 });
 	},
 
+	testNumberToString: function() {
+	    this.assert(isEqual("3124",
+				run("(number->string 3124)")));
+	},
+
+
+	testStringToNumber: function() {
+	    this.assert(isEqual(plt.types.Rational.makeInstance(4213),
+				run("(string->number \"4213\")")));
+	},
+
+
+
 	testBadIfs: function() {
 	    this.assertMobyRaise(isIfTooManyElements,
 				 function() {
@@ -127,16 +139,44 @@ function init() {
 				    "(f 3)")));
 	    
 	},
+
 	testLambda: function() {
 	    this.assert(isEqual(number(25),
 				run("((lambda (x) (* x x)) 5)")));
+	    this.assert(isEqual(number(42),
+				run("((lambda () 42))")));
 	},
+
+
+	testLambdaBadListOfArguments: function() {
+	    this.assertMobyRaise(isDuplicateIdentifier,
+				 function() { run("(lambda (x x) (* x x))")});
+
+	    this.assertMobyRaise(isExpectedIdentifier,
+				 function() { run("(lambda (x 1) (* x x))")});
+
+ 	    this.assertMobyRaise(isExpectedListOfIdentifiers,
+ 				 function() { run("(lambda 42 (* x x))")});
+
+	},
+
+	testLambdaNotSingleBody: function() {
+ 	    this.assertMobyRaise(isLambdaTooFewElements,
+ 				 function() { run("(lambda)")});
+
+ 	    this.assertMobyRaise(isLambdaTooFewElements,
+ 				 function() { run("(lambda ())")});
+
+ 	    this.assertMobyRaise(isLambdaTooManyElements,
+ 				 function() { run("(lambda () 1 2 3)")});
+	},
+
 
 
 	testDivisionByZero: function() {
 	    plt.Kernel.lastLoc = undefined;
-	    this.assertRaise("MobyRuntimeError",
-			     function() { run("   (/ 1 0)")});
+	    this.assertMobyRaise(isGenericRuntimeError,
+				 function() { run("   (/ 1 0)")});
 	},
 
 
@@ -216,23 +256,35 @@ function init() {
 
 	
 	testAnd: function() {
-	    this.assert(isEqual(FALSE, run("(and false)")));
-	    this.assert(isEqual(TRUE, run("(and true)")));
 	    this.assert(isEqual(FALSE, run("(and true false)")));
 	    this.assert(isEqual(TRUE, run("(and true true)")));
 	    this.assert(isEqual(FALSE, run("(and false true)")));
 	    this.assert(isEqual(FALSE, run("(and false false)")));
 	},
 
+	testAndExpectsAtLeastTwoExpressions: function() {
+	    this.assertMobyRaise(isBooleanChainTooFewElements,
+				 function() { run("(and)")} );
+	    this.assertMobyRaise(isBooleanChainTooFewElements,
+				 function() { run("(and true)")} );
+	},
+
 
 	testOr: function() {
-	    this.assert(isEqual(TRUE, run("(or true)")))
-	    this.assert(isEqual(FALSE, run("(or false)")))
 	    this.assert(isEqual(TRUE, run("(or true false)")));
 	    this.assert(isEqual(TRUE, run("(or true true)")));
 	    this.assert(isEqual(TRUE, run("(or false true)")));
 	    this.assert(isEqual(FALSE, run("(or false false)")));
 	},
+
+
+	testOrExpectsAtLeastTwoExpressions: function() {
+	    this.assertMobyRaise(isBooleanChainTooFewElements,
+				 function() { run("(or)") });
+	    this.assertMobyRaise(isBooleanChainTooFewElements,
+				 function() { run("(or true)")} );
+	},
+
 
 
 	testOrmap: function() {
@@ -269,6 +321,10 @@ function init() {
 	},
 
 
+	testRequire: function() {
+	    run("(require moby/runtime/error-struct)");
+	},
+
 
 	testBegin: function() {
 	    // normal behaviour
@@ -281,18 +337,20 @@ function init() {
 				     run("(begin (+ 1 2) (- 3 4) (define j 5) (* 2 3))");
 				 });
 
-	    // non top-level definition
-// 	    this.assertRaise("MobySyntaxError",
-// 			     function () {
-// 				 );
-
-	    // sequencial evaluation
+	    // sequential evaluation
 	    this.assert(isEqual(number(3),
 			    	run("(define x 5)(define y 3)" +
 				    "(begin (set! x y) (set! y x) y)")));
 	    
 	},
 
+	testBeginEmptyBody: function() {
+	    this.assertMobyRaise(isBeginBodyEmpty,
+				 function(){
+				     run("(begin)")
+				 });
+	},
+	
 	testBoxMutation: function() {
 	    this.assert(isEqual(number(2),
 			    	run("(define bx (box 5))" +
@@ -313,12 +371,13 @@ function init() {
 				    "(set-str-b! a-str 9)" +
 				    "(str-b a-str)")));
 
-	    this.assertRaise("MobyRuntimeError",
-			     function () {
-			    	 run("(define-struct str (a b c))" +
-				     "(define a-str (make-str 1 2 3))" +
-				     "(set-str-b! 9 a-str)" +
-				     "(str-b a-str)")});
+	    this.assertMobyRaise(
+		isGenericRuntimeError,
+		function () {
+		    run("(define-struct str (a b c))" +
+			"(define a-str (make-str 1 2 3))" +
+			"(set-str-b! 9 a-str)" +
+			"(str-b a-str)")});
 
 	    // posns are immutable, so set-posn-x! should not exist.
 	    this.assertMobyRaise(isUndefinedIdentifier,
@@ -488,14 +547,15 @@ function init() {
 
 
 	testCheckExpect: function() {
-	    this.assertRaise("MobyTestingError",
-			     function() { run("(check-expect 3 4)"); })
 	    run("(check-expect 3 3)");
+	    this.assertMobyRaise(
+		isCheckExpect,
+		function() { run("(check-expect 3 4)"); })
 	},
-
-
+	
+	
 	testExample: function() {
-	    this.assertRaise("MobyTestingError",
+	    this.assertMobyRaise(isCheckExpect,
 			     function() { run("(EXAMPLE 3 4)"); })
 	    run("(EXAMPLE 3 3)");
 	},
@@ -503,17 +563,68 @@ function init() {
 
 	testCheckWithin: function() {
 	    run("(check-within 22/7 pi 0.01)");
-	    this.assertRaise("MobyTestingError",
+	    this.assertMobyRaise(isCheckWithin,
 			     function() { run("(check-within 22/7 pi 0.00001)"); })
 
 	},
 
 	testCheckError: function() {
-	    this.assertRaise("MobyTestingError",
-			     function() { run("(check-error 42 \"blah\")")})
+ 	    this.assertMobyRaise(
+ 		isCheckError,
+ 		function() { run("(check-error (/ 1 0) \"blah\")")})
+ 	    this.assertMobyRaise(
+ 		isCheckErrorNoError,
+ 		function() { run("(check-error 42 \"blah\")")})
 	    run("(check-error (/ 1 0) \"division by zero\")");
 	},
 	
+	testQuoteMissingExpression: function() {
+	    this.assertMobyRaise(isQuoteTooFewElements,
+				 function() { run("(quote)"); });
+	    this.assert(isEqual(run("(list 'quote)"),
+				run("(quote (quote))")));
+	},
+
+	testQuoteTooManyElements: function() {
+	    this.assertMobyRaise(isQuoteTooManyElements,
+				 function() { run("(quote a b)"); });
+	},
+
+
+	testQuasiquoteMissingExpression: function() {
+	    this.assertMobyRaise(isQuasiquoteTooFewElements,
+				 function() { run("(quasiquote)"); });
+	    this.assert(isEqual(run("(list 'quasiquote)"),
+				run("(quasiquote (quasiquote))")));
+	},
+
+	testQuasiquoteTooManyElements: function() {
+	    this.assertMobyRaise(isQuasiquoteTooManyElements,
+				 function() { run("(quasiquote 1 2)"); });
+	},
+
+
+	testUnquoteMissingExpression: function() {
+	    this.assertMobyRaise(isUnquoteTooFewElements,
+				 function() { run("(quasiquote (unquote))"); });
+	},
+
+	testUnquoteTooManyElements: function() {
+	    this.assertMobyRaise(isUnquoteTooManyElements,
+				 function() { run("(quasiquote (unquote x y))"); });
+	},
+
+
+
+	testUnquote: function() {
+	    this.assert(isEqual(run("(list 'unquote 'pi)"),
+				run("(quote (unquote pi))")));
+
+	    this.assert(isEqual(run("pi"),
+				run("(quasiquote (unquote pi))")));
+
+	},
+
 
 	testQuasiquotation: function() {
 	    this.assert(isEqual(run("'(unquote x)"),
@@ -747,6 +858,20 @@ function init() {
 	    this.assert(run("(local [(define (f x) x)] (eq? f f))"));
 	    this.assert(false === run("(local [(define (f x) x) (define (g x) x)] (eq? f g))"));
 	},
+
+
+	testSgn: function() {
+	    this.assert(isEqual(run("1"),
+				run("(sgn 42)")));
+
+	    this.assert(isEqual(run("-1"),
+				run("(sgn -42)")));
+
+	    this.assert(isEqual(run("0"),
+				run("(sgn 0)")));
+	},
+
+
 
 
 	testCircularity: function() {

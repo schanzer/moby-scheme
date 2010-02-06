@@ -111,22 +111,22 @@ var getTests;
 
 	    testDivisionByZero: function() {
 		Kernel._slash_(Rational.ONE, [Rational.ONE]);
-		this.assertRaise("MobyRuntimeError", 
-				 function() {
-				     Kernel._slash_(Rational.ONE, [Rational.ZERO]);
-				 });
+		this.assertMobyRaise(isGenericRuntimeError,
+				     function() {
+					 Kernel._slash_(Rational.ONE, [Rational.ZERO]);
+				     });
 
-		this.assertRaise("MobyRuntimeError", 
-				 function() {
-				     Kernel._slash_(FloatPoint.makeInstance(1),
-						    [Rational.ZERO]);
-				 });
+		this.assertMobyRaise(isGenericRuntimeError,
+				     function() {
+					 Kernel._slash_(FloatPoint.makeInstance(1),
+							[Rational.ZERO]);
+				     });
 
-		this.assertRaise("MobyRuntimeError", 
-				 function() {
-				     Kernel._slash_(FloatPoint.makeInstance(1),
-						    [FloatPoint.makeInstance(0)]);
-				 });
+		this.assertMobyRaise(isGenericRuntimeError, 
+				     function() {
+					 Kernel._slash_(FloatPoint.makeInstance(1),
+							[FloatPoint.makeInstance(0)]);
+				     });
 	    },
 
 	    testAdd1 : function() {
@@ -239,11 +239,11 @@ var getTests;
 						Rational.makeInstance(2), []));
 	    },
 
-	    testComparisionTypes : function() {
-		this.assertRaise("MobyTypeError",
+	    testComparisonTypes : function() {
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel._lessthan_(2, 3, [])});
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel._greaterthan_("2", "3", [])});
 	    },
@@ -266,7 +266,7 @@ var getTests;
 
 		this.assert(!Kernel._lessthan__equal_(Rational.makeInstance(16),
 						      Rational.makeInstance(15), []));
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel._lessthan__equal_("2", "3", [])});
 	    },
@@ -327,9 +327,11 @@ var getTests;
 	    testExpt : function(){
 		var i = plt.types.Complex.makeInstance(
 		    Rational.makeInstance(0),Rational.makeInstance( 1));
+
 		this.assert(Kernel.equal_question_(
 		    Kernel.expt(i, i), 
 		    Kernel.exp(PI.half().minus())));
+
 		this.assert(Kernel.equal_question_(
 		    Kernel.expt(FloatPoint.makeInstance(2), 
 				FloatPoint.makeInstance(3)), 
@@ -357,7 +359,7 @@ var getTests;
 	    testSqr: function() {
 		var n1 = Rational.makeInstance(42);
 		this.assertEqual(1764, Kernel.sqr(n1).toFixnum());
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() { Kernel.sqr("42"); });
 	    },
 
@@ -366,7 +368,8 @@ var getTests;
 		var n2 = Rational.makeInstance(6);
 		
 		this.assertEqual(n2, Kernel.integer_dash_sqrt(n1));
-		this.assertRaise("MobyTypeError", function() { Kernel.integer_dash_sqrt(FloatPoint.makeInstance(3.5)); }); 
+		this.assertMobyRaise(isTypeMismatch,
+				     function() { Kernel.integer_dash_sqrt(FloatPoint.makeInstance(3.5)); }); 
 	    },
 
 
@@ -460,7 +463,7 @@ var getTests;
 		this.assert(Kernel.equal_question_(Kernel.numerator(Rational.makeInstance(7,2)), Rational.makeInstance(7,1)));
 		this.assert(Kernel.equal_question_(Kernel.numerator(FloatPoint.makeInstance(3)),
 						   FloatPoint.makeInstance(3)));
-		},
+	    },
 
 
 	    testIsExact : function() {
@@ -784,11 +787,11 @@ var getTests;
 		this.assert(Kernel.boolean_equal__question_(Logic.TRUE, Logic.TRUE));
 		this.assert(!Kernel.boolean_equal__question_(Logic.TRUE, Logic.FALSE));
 		this.assert(Kernel.boolean_equal__question_(Logic.FALSE, Logic.FALSE));	
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel.boolean_equal__question_(Logic.TRUE, "true");
 				 });
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel.boolean_equal__question_("true", Logic.TRUE);
 				 });
@@ -1119,9 +1122,9 @@ var getTests;
 		this.assertEqual('h', Kernel.string_dash_ith(s, Rational.makeInstance(4)));
 		this.assertEqual('i', Kernel.string_dash_ith(s, Rational.makeInstance(5)));
 		
-		this.assertRaise("MobyRuntimeError", 
-				 function() { Kernel.string_dash_ith
-					      (s, Rational.makeInstance(6)) });
+		this.assertMobyRaise(isIndexOutOfBounds, 
+				     function() { Kernel.string_dash_ith
+						  (s, Rational.makeInstance(6)) });
 	    },
 	    
 	    testString_dash_ref : function(){
@@ -1129,12 +1132,12 @@ var getTests;
 		var i = FloatPoint.makeInstance(2);
 		this.assert(Kernel.char_equal__question_(Char.makeInstance("e"), 
 							 Kernel.string_dash_ref(zhe, i), []));
-		this.assertRaise("MobyTypeError",
-				 function() { Kernel.string_dash_ref
-					      (zhe, Rational.makeInstance(-1)) });
-		this.assertRaise("MobyRuntimeError",
-				 function() { Kernel.string_dash_ref
-					      (zhe, Rational.makeInstance(4)) });
+		this.assertMobyRaise(isTypeMismatch,
+				     function() { Kernel.string_dash_ref
+						  (zhe, Rational.makeInstance(-1)) });
+		this.assertMobyRaise(isIndexOutOfBounds,
+				     function() { Kernel.string_dash_ref
+						  (zhe, Rational.makeInstance(4)) });
 	    }, 
 	    
 
@@ -1258,7 +1261,8 @@ var getTests;
 
 	    testRandom : function() {
 		this.assert(Kernel.random(Rational.makeInstance(5)).toFixnum() < 5);	
-		this.assertRaise("MobyTypeError", function() { Kernel.random(42) });
+		this.assertMobyRaise(isTypeMismatch,
+				     function() { Kernel.random(42) });
 	    },
 
 	    testCurrentSeconds : function() {
@@ -1451,14 +1455,14 @@ var getTests;
 		this.assertEqual(x, Kernel.posn_dash_x(p));
 		this.assertEqual(y, Kernel.posn_dash_y(p));
 
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() { Kernel.posn_dash_x(42)} );
 	    },
 
 
 	    testError : function() {
-		this.assertRaise("MobyRuntimeError",
-				 function() { Kernel.error(Symbol.makeInstance("ah"), "blah")});
+		this.assertMobyRaise(isGenericRuntimeError,
+				     function() { Kernel.error(Symbol.makeInstance("ah"), "blah")});
 	    },
 
 
@@ -1711,7 +1715,7 @@ var getTests;
 
 		this.assert(Kernel.equal_question_(Char.makeInstance("x"), lst.first()));
 
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel.set_dash_car_bang_(Rational.makeInstance(10),lst);});
 	    },
@@ -1728,62 +1732,62 @@ var getTests;
 
 		this.assert(Kernel.equal_question_(lst2, lst.rest()));
 
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel.set_dash_cdr_bang_(Rational.makeInstance(10),lst);});
 
-		this.assertRaise("MobyTypeError",
+		this.assertMobyRaise(isTypeMismatch,
 				 function() {
 				     Kernel.set_dash_cdr_bang_(lst,Rational.makeInstance(10));});
-		},
+	    },
 
 	    testVectors: function() {
-		    this.assert(Kernel.equal_question_(Kernel.vector_dash_length(Kernel.vector([])),
-						       Rational.makeInstance(0)));
+		this.assert(Kernel.equal_question_(Kernel.vector_dash_length(Kernel.vector([])),
+						   Rational.makeInstance(0)));
 
-		    this.assert(Kernel.equal_question_(Kernel.vector_dash_length(Kernel.vector(["foo", "bar"])),
-						       Rational.makeInstance(2)));
+		this.assert(Kernel.equal_question_(Kernel.vector_dash_length(Kernel.vector(["foo", "bar"])),
+						   Rational.makeInstance(2)));
 
-		    this.assert(Kernel.equal_question_(Kernel.vector_dash_ref(Kernel.vector(["foo", "bar"]), Rational.makeInstance(0)),
-						       "foo"));
+		this.assert(Kernel.equal_question_(Kernel.vector_dash_ref(Kernel.vector(["foo", "bar"]), Rational.makeInstance(0)),
+						   "foo"));
 
-		    this.assert(Kernel.equal_question_(Kernel.vector_dash_ref(Kernel.vector(["foo", "bar"]), Rational.makeInstance(1)),
-						       "bar"));
-		    this.assertRaise("MobyTypeError",
-				     function() {
-					 Kernel.vector_dash_ref
-					     (Kernel.vector(["foo", "bar"]), Rational.makeInstance(2));});
+		this.assert(Kernel.equal_question_(Kernel.vector_dash_ref(Kernel.vector(["foo", "bar"]), Rational.makeInstance(1)),
+						   "bar"));
+		this.assertMobyRaise(isTypeMismatch,
+				 function() {
+				     Kernel.vector_dash_ref
+				     (Kernel.vector(["foo", "bar"]), Rational.makeInstance(2));});
 
-		    this.assertEqual(5, Kernel.vector_dash_length(Kernel.make_dash_vector(Rational.makeInstance(5), [])).toFixnum());
+		this.assertEqual(5, Kernel.vector_dash_length(Kernel.make_dash_vector(Rational.makeInstance(5), [])).toFixnum());
 
-		    var aVector = Kernel.make_dash_vector(Rational.makeInstance(5), []);
-		    Kernel.vector_dash_set_bang_(aVector, Rational.ZERO, "blah");
-		    this.assertEqual("blah", Kernel.vector_dash_ref(aVector, Rational.ZERO));
-		    Kernel.vector_dash_set_bang_(aVector, Rational.ZERO, "boing");
-		    this.assertEqual("boing", Kernel.vector_dash_ref(aVector, Rational.ZERO));
+		var aVector = Kernel.make_dash_vector(Rational.makeInstance(5), []);
+		Kernel.vector_dash_set_bang_(aVector, Rational.ZERO, "blah");
+		this.assertEqual("blah", Kernel.vector_dash_ref(aVector, Rational.ZERO));
+		Kernel.vector_dash_set_bang_(aVector, Rational.ZERO, "boing");
+		this.assertEqual("boing", Kernel.vector_dash_ref(aVector, Rational.ZERO));
 
 
-		    var zeroonetwo = Kernel.build_dash_vector(Rational.makeInstance(3),
-							      function(args) {
-								  return args[0];
-							      });
-		    for (var i = 0; i < 3; i++) {
-			this.assertEqual(i,
-					 Kernel.vector_dash_ref(zeroonetwo, Rational.makeInstance(i)).toFixnum());
-		    }
+		var zeroonetwo = Kernel.build_dash_vector(Rational.makeInstance(3),
+							  function(args) {
+							      return args[0];
+							  });
+		for (var i = 0; i < 3; i++) {
+		    this.assertEqual(i,
+				     Kernel.vector_dash_ref(zeroonetwo, Rational.makeInstance(i)).toFixnum());
+		}
 
-		    this.assert(Kernel.vector_question_(Kernel.vector([])));
-		    this.assert(! Kernel.vector_question_(Kernel.list([])));
-		},
+		this.assert(Kernel.vector_question_(Kernel.vector([])));
+		this.assert(! Kernel.vector_question_(Kernel.list([])));
+	    },
 
 	    testExactToInexact: function() {
-		    this.assert(plt.types.NumberTower.equal(plt.Kernel.exact_dash__greaterthan_inexact(Rational.makeInstance(-71, 10)),
-							    FloatPoint.makeInstance(-7.1)));
+		this.assert(plt.types.NumberTower.equal(plt.Kernel.exact_dash__greaterthan_inexact(Rational.makeInstance(-71, 10)),
+							FloatPoint.makeInstance(-7.1)));
 
 
-		    this.assert(plt.Kernel.equal_question_(plt.Kernel.format("~s", [plt.Kernel.exact_dash__greaterthan_inexact(Rational.makeInstance(-71, 10))]),
-							    "-7.1"));
-		}
+		this.assert(plt.Kernel.equal_question_(plt.Kernel.format("~s", [plt.Kernel.exact_dash__greaterthan_inexact(Rational.makeInstance(-71, 10))]),
+						       "-7.1"));
+	    }
 	    
 	    
 	})

@@ -60,6 +60,8 @@ Box
 	return _eqHashCodeCounter;
     }
     
+
+
     
     // plt.types.getHashCode: any -> (or fixnum string)
     // Produces a hashcode appropriate for eq.
@@ -75,6 +77,75 @@ Box
 	}
 	return 0;
     };
+
+
+
+
+    var getExternalModuleValue = function(module, name) {
+
+	// munge: string -> string
+	var munge = function(name) {
+	    var C = plt.Kernel.invokeModule("moby/compiler").EXPORTS;
+	    return (C.identifier_dash__greaterthan_munged_dash_java_dash_identifier(
+		plt.types.Symbol.makeInstance(name))).toString();
+	}
+	
+	// getModule: string -> module
+	// Returns a module that knows how to map scheme names to javascript
+	// names.
+	var getModule = function(name) {
+	    var theModule = plt.Kernel.invokeModule(name);
+	    var exports = theModule.EXPORTS;
+	    return {
+		theModule: theModule,
+		getFunction: function(n) {
+		    return exports[munge(n)];
+		}};
+	}
+	return getModule(module).getFunction(name);
+    };
+
+
+    // throwMobyError: (Loc | sexp | false) string [X ...] -> void
+    // Throws an error using the structures in moby/runtime/error-struct.
+    plt.types.throwMobyError = function(locSexp, errorTypeName, args) {
+	var makeMobyError = 
+	    getExternalModuleValue("moby/runtime/error-struct",
+				   "make-moby-error");
+	var makeErrorType = 
+	    getExternalModuleValue("moby/runtime/error-struct",
+				   errorTypeName);
+	var sexpToLoc = 
+	    getExternalModuleValue("moby/runtime/stx",
+				   "sexp->Loc")
+	var isLoc = 
+	    getExternalModuleValue("moby/runtime/stx",
+				   "Loc?")
+
+	var aLoc;
+	if (locSexp) {
+	    if (isLoc(locSexp)) { 
+		aLoc = locSexp;
+	    } else {
+		aLoc = sexpToLoc(locSexp);
+	    }
+	    
+	} else {
+	    aLoc = plt.Kernel.locHashToLoc(plt.Kernel.lastLoc);
+	}
+	throw makeMobyError(aLoc,
+			    makeErrorType.apply(null, args));
+    };
+
+
+    var throwRuntimeError = function(msg) {
+	plt.types.throwMobyError(false, 
+				 "make-moby-error-type:generic-runtime-error",
+				 [msg]);
+    };
+
+
+
 
 
 
@@ -276,10 +347,10 @@ Box
     };
 
     plt.types.Empty.prototype.first = function() {
-	throw new MobyRuntimeError("first can't be applied on empty.");
+	throwRuntimeError("first can't be applied on empty.");
     };
     plt.types.Empty.prototype.rest = function() {
-	throw new MobyRuntimeError("rest can't be applied on empty.");
+	throwRuntimeError("rest can't be applied on empty.");
     };
     plt.types.Empty.prototype.isEmpty = function() {
 	return true;
@@ -504,10 +575,10 @@ Box
     var gcd = function(a, b) {
 	var t;
 	if (isNaN(a) || !isFinite(a)) {
-	    throw new MobyRuntimeError("not a number: " + a);
+	    throwRuntimeError("not a number: " + a);
 	}
 	if (isNaN(b) || !isFinite(b)) {
-	    throw new MobyRuntimeError("not a number: " + b);
+	    throwRuntimeError("not a number: " + b);
 	}
 	while (b != 0) {
 	    t = a;
@@ -520,7 +591,7 @@ Box
     plt.types.Rational = function(n, d) {
 	if (d == undefined) { d = 1; }
 	if (d == 0) {
-	    throw new MobyRuntimeError("cannot have zero denominator.");
+	    throwRuntimeError("cannot have zero denominator.");
 	}
 	var divisor = gcd(Math.abs(n), Math.abs(d));
 	this.n = n / divisor;
@@ -550,7 +621,7 @@ Box
 	if (target.level() == 2)	
 	    return plt.types.Complex.makeInstance(this, 
 						  plt.types.Rational.ZERO);
-	throw new MobyRuntimeError("invalid level of Number");
+	throwRuntimeError("invalid level of Number");
     };
     
     plt.types.Rational.prototype.isFinite = function() {
@@ -600,7 +671,7 @@ Box
     
     plt.types.Rational.prototype.divide = function(other) {
 	if (this.d * other.n == 0) {
-	    throw new MobyRuntimeError("division by zero");
+	    throwRuntimeError("division by zero");
 	}
 	return plt.types.Rational.makeInstance(this.n * other.d,
 					       this.d * other.n);
@@ -780,7 +851,7 @@ Box
     var _rationalCache = {};
     plt.types.Rational.makeInstance = function(n, d) {
 	if (n == undefined)
-	    throw new MobyRuntimeError("n undefined");
+	    throwRuntimeError("n undefined");
 
 	if (d == undefined) { d = 1; }
 	
@@ -983,7 +1054,7 @@ Box
     FloatPoint.prototype.divide = function(other) {
 	if (this.isFinite() && other.isFinite()) {
 	    if (other.n == 0) {
-		throw new MobyRuntimeError("division by zero");
+		throwRuntimeError("division by zero");
 	    }
             return FloatPoint.makeInstance(this.n / other.n);
 	} else if (isNaN(this.n) || isNaN(other.n)) {
@@ -1227,7 +1298,7 @@ Box
 
     plt.types.Complex.prototype.toExact = function() { 
 	if (! this.isReal()) {
-	    throw new MobyRuntimeError("inexact->exact: expects argument of type real number");
+	    throwRuntimeError("inexact->exact: expects argument of type real number");
 	}
 	return this.r.toExact();
     };
@@ -1243,7 +1314,7 @@ Box
     };
     
     plt.types.Complex.prototype.lift = function(target){
-	throw new MobyRuntimeError("Don't know how to lift Complex number");
+	throwRuntimeError("Don't know how to lift Complex number");
     };
     
     plt.types.Complex.prototype.isEqual = function(other, aUnionFind){
@@ -1260,28 +1331,28 @@ Box
 
     plt.types.Complex.prototype.greaterThan = function(other) {
 	if (! this.isReal() || ! other.isReal()) {
-	    throw new MobyRuntimeError(">: expects argument of type real number");
+	    throwRuntimeError(">: expects argument of type real number");
 	}
 	return NumberTower.greaterThan(this.r, other.r);
     };
 
     plt.types.Complex.prototype.greaterThanOrEqual = function(other) {
 	if (! this.isReal() || ! other.isReal()) {
-	    throw new MobyRuntimeError(">: expects argument of type real number");
+	    throwRuntimeError(">: expects argument of type real number");
 	}
 	return NumberTower.greaterThanOrEqual(this.r, other.r);
     };
 
     plt.types.Complex.prototype.lessThan = function(other) {
 	if (! this.isReal() || ! other.isReal()) {
-	    throw new MobyRuntimeError(">: expects argument of type real number");
+	    throwRuntimeError(">: expects argument of type real number");
 	}
 	return NumberTower.lessThan(this.r, other.r);
     };
 
     plt.types.Complex.prototype.lessThanOrEqual = function(other) {
 	if (! this.isReal() || ! other.isReal()) {
-	    throw new MobyRuntimeError(">: expects argument of type real number");
+	    throwRuntimeError(">: expects argument of type real number");
 	}
 	return NumberTower.lessThanOrEqual(this.r, other.r);
     };
@@ -1289,33 +1360,33 @@ Box
 
     plt.types.Complex.prototype.abs = function(){
 	if (!NumberTower.equal(this.i, plt.types.Rational.ZERO).valueOf())
-	    throw new MobyRuntimeError("abs: expects argument of type real number");
+	    throwRuntimeError("abs: expects argument of type real number");
 	return this.r.abs();
     };
     
     plt.types.Complex.prototype.toFixnum = function(){
 	if (!NumberTower.equal(this.i, plt.types.Rational.ZERO).valueOf())
-	    throw new MobyRuntimeError("toFixnum: expects argument of type real number");
+	    throwRuntimeError("toFixnum: expects argument of type real number");
 	return this.r.toFixnum();
     };
 
     plt.types.Complex.prototype.numerator = function() {
 	if (!this.isReal())
-	    throw new MobyRuntimeError("numerator: can only be applied to real number");
+	    throwRuntimeError("numerator: can only be applied to real number");
 	return this.n.numerator();
     };
     
 
     plt.types.Complex.prototype.denominator = function() {
 	if (!this.isReal())
-	    throw new MobyRuntimeError("floor: can only be applied to real number");
+	    throwRuntimeError("floor: can only be applied to real number");
 	return this.n.denominator();
     };
 
     
     plt.types.Complex.prototype.toFloat = function(){
 	if (!NumberTower.equal(this.i, plt.types.Rational.ZERO).valueOf())
-	    throw new MobyRuntimeError("toFloat: expects argument of type real number");
+	    throwRuntimeError("toFloat: expects argument of type real number");
 	return this.r.toFloat();
     };
     
@@ -1524,13 +1595,13 @@ Box
     
     plt.types.Complex.prototype.ceiling = function(){
 	if (!this.isReal())
-	    throw new MobyRuntimeError("ceiling: can only be applied to real number");
+	    throwRuntimeError("ceiling: can only be applied to real number");
 	return this.r.ceiling();
     };
     
     plt.types.Complex.prototype.floor = function(){
 	if (!this.isReal())
-	    throw new MobyRuntimeError("floor: can only be applied to real number");
+	    throwRuntimeError("floor: can only be applied to real number");
 	return this.r.floor();
     };
     
@@ -1634,7 +1705,7 @@ Box
 	if (y.level() < x.level()) y = y.lift(x);
 
 	if (!(x.isReal() && y.isReal()))
-	    throw new MobyRuntimeError("greaterThanOrEqual: couldn't be applied to complex number");
+	    throwRuntimeError("greaterThanOrEqual: couldn't be applied to complex number");
 	return x.greaterThanOrEqual(y);
     };
     
@@ -1642,7 +1713,7 @@ Box
 	if (x.level() < y.level()) x = x.lift(y);
 	if (y.level() < x.level()) y = y.lift(x);
 	if (!(x.isReal() && y.isReal()))
-	    throw new MobyRuntimeError("lessThanOrEqual: couldn't be applied to complex number");
+	    throwRuntimeError("lessThanOrEqual: couldn't be applied to complex number");
 	return x.lessThanOrEqual(y);    	
     };
     
@@ -1651,7 +1722,7 @@ Box
 	if (y.level() < x.level()) y = y.lift(x);
 	
 	if (!(x.isReal() && y.isReal()))
-	    throw new MobyRuntimeError("greaterThan: couldn't be applied to complex number");
+	    throwRuntimeError("greaterThan: couldn't be applied to complex number");
 	return x.greaterThan(y);
 	
     };
@@ -1661,7 +1732,7 @@ Box
 	if (y.level() < x.level()) y = y.lift(x);
 
 	if (!(x.isReal() && y.isReal()))
-	    throw new MobyRuntimeError("lessThan: couldn't be applied to complex number");
+	    throwRuntimeError("lessThan: couldn't be applied to complex number");
 	return x.lessThan(y);
     };
     
@@ -1687,6 +1758,21 @@ Box
     
     NumberTower.sqr = function(x) {
 	return NumberTower.multiply(x, x);
+    };
+
+
+    // FIXME: rename to negate
+    NumberTower.minus = function(x) {
+	return x.minus();
+    };
+
+    NumberTower.half = function(x) {
+	return x.half();
+    };
+
+
+    NumberTower.exp = function(x) {
+	return x.exp();
     };
     
     NumberTower.expt = function(x, y){
@@ -2025,60 +2111,6 @@ Box
 	return primitiveF._mobyLiftedFunction;
     };
 
-
-
-
-
-
-    //////////////////////////////////////////////////////////////////////
-    var MobyError = function(msg) {
-	this.msg = msg;
-    }
-    MobyError.prototype.name= 'MobyError';
-    MobyError.prototype.toString = function () { return this.name + ": " + this.msg }
-
-
-    var MobyParserError = function(msg, loc) {
-	MobyError.call(this, msg);
-	this.loc = loc;
-    }
-    MobyParserError.prototype = heir(MobyError.prototype);
-    MobyParserError.prototype.name= 'MobyParserError';
-
-    
-    var MobySyntaxError = function(msg, stx) {
-	MobyError.call(this, msg);
-	this.stx = stx;
-    }
-    MobySyntaxError.prototype = heir(MobyError.prototype);
-    MobySyntaxError.prototype.name= 'MobySyntaxError';
-
-
-
-
-
-    var MobyRuntimeError = function(msg) {
-	MobyError.call(this, msg);
-    }
-    MobyRuntimeError.prototype = heir(MobyError.prototype);
-    MobyRuntimeError.prototype.name= 'MobyRuntimeError';
-
-
-    
-    var MobyTestingError = function(msg) {
-	MobyError.call(this, msg);
-    }
-    MobyTestingError.prototype = heir(MobyRuntimeError.prototype);
-    MobyTestingError.prototype.name= 'MobyTestingError';
-
-
-
-
-    plt.types.MobyError = MobyError;
-    plt.types.MobyParserError = MobyParserError;
-    plt.types.MobySyntaxError = MobySyntaxError;
-    plt.types.MobyRuntimeError = MobyRuntimeError;
-    plt.types.MobyTestingError = MobyTestingError;
 
 
 

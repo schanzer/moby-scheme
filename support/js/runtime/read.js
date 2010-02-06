@@ -1,5 +1,11 @@
 // Depends on types.js, stx.js
-goog.provide('plt.reader');
+// goog.provide('plt.reader');
+
+
+
+
+    if (typeof(plt) === 'undefined') { plt = {}; }
+if (! plt.reader) { plt.reader = {}; }
 
 
 (function(){
@@ -25,6 +31,10 @@ goog.provide('plt.reader');
 
     var num = plt.types.Rational.makeInstance;
 
+
+
+    //////////////////////////////////////////////////////////////////////
+    // Tokenizer
 
     // replaceEscapes: string -> string
     var replaceEscapes = function(s) {
@@ -68,14 +78,11 @@ goog.provide('plt.reader');
     }
 
 
-    var delimiter = "[\\s\\\(\\\)\\\[\\\]\\\{\\\}\\\"\\\,\\\'\\\`\\\;]";
     var nondelimiter = "[^\\s\\\(\\\)\\\[\\\]\\\{\\\}\\\"\\\,\\\'\\\`\\\;]";
 
 
-    var numberHeader = ("(?:(?:\\d+\\/\\d+)|"+
-			(  "(?:(?:\\d+\\.\\d+|\\d+\\.|\\.\\d+)(?:[eE][+\\-]?\\d+)?)|")+
-			(  "(?:\\d+(?:[eE][+\\-]?\\d+)?))"));
 
+    // error tokens have the type "incomplete-token".
 
     var PATTERNS = [['whitespace' , /^(\s+)/],
 		    ['#;', /^([#][;])/],
@@ -84,6 +91,7 @@ goog.provide('plt.reader');
 				"(?:(?:\\|[^\\#])|[^\\|])*"+
 				"[|][#])")],
 		    ['comment' , /(^;[^\n]*)/],
+		    ['incomplete-pipe-comment', new RegExp("^[#][|]")],  // unclosed pipe comment
 		    ['(' , /^(\(|\[|\{)/],
 		    [')' , /^(\)|\]|\})/],
 		    ['\'' , /^(\')/],
@@ -93,16 +101,22 @@ goog.provide('plt.reader');
 		    ['char', /^\#\\(newline|backspace)/],
 		    ['char', /^\#\\(.)/],
 		    ['string' , new RegExp("^\"((?:([^\\\\\"]|(\\\\.)))*)\"")],
+		    ['incomplete-string', new RegExp("^\"")],      // unclosed string
 		    ['symbol-or-number', new RegExp("^(" + nondelimiter + "+)")]
-		    ];
 
+		   ];
+
+
+    var numberHeader = ("(?:(?:\\d+\\/\\d+)|"+
+			(  "(?:(?:\\d+\\.\\d+|\\d+\\.|\\.\\d+)(?:[eE][+\\-]?\\d+)?)|")+
+			(  "(?:\\d+(?:[eE][+\\-]?\\d+)?))"));
 
     var numberPatterns = [['complex' , new RegExp("^((?:(?:\\#[ei])?[+\\-]?" + numberHeader +")?"
 						  + "(?:[+\\-]" + numberHeader + ")i$)")],
 			  ['number' , /^((?:\#[ei])?[+-]inf.0)$/],
 			  ['number' , /^((?:\#[ei])?[+-]nan.0)$/],
 			  ['number' , new RegExp("^((?:\\#[ei])?[+\\-]?" + numberHeader + "$)")]];
-	
+    
 
     var tokenize = function(s, source) {
 
@@ -117,47 +131,72 @@ goog.provide('plt.reader');
 	    var shouldContinue = false;
 	    for (var i = 0; i < PATTERNS.length; i++) {
 		var patternName = PATTERNS[i][0];
-		var pattern = PATTERNS[i][1]
+		var pattern = PATTERNS[i][1];
 		var result = s.match(pattern);
 		if (result != null) {
 		    var wholeMatch = result[0];
 		    var tokenText = result[1];
+		    if (patternName === "incomplete-string") {
+			plt.types.throwMobyError(new Loc(num(offset),
+							 num(line),
+							 num(column),
+							 num(wholeMatch.length),
+							 source),
+						 "make-moby-error-type:unclosed-lexical-token",
+						 ["string",
+						  plt.types.Symbol.makeInstance("\""),
+						  plt.types.Symbol.makeInstance("\"")]);
+		    }
+		    if (patternName === "incomplete-pipe-comment") {
+			plt.types.throwMobyError(new Loc(num(offset),
+							 num(line),
+							 num(column),
+							 num(wholeMatch.length),
+							 source),
+						 "make-moby-error-type:unclosed-lexical-token",
+						 ["comment",
+						  plt.types.Symbol.makeInstance("#|"),
+						  plt.types.Symbol.makeInstance("|#")]);
+		    }
+		    
 		    if (patternName == 'string') {
 			tokenText = replaceEscapes(tokenText);
 		    } 
+
+		    
 		    if (patternName == "symbol-or-number") {
 			var isNumber = false;
 			for (var j = 0; j < numberPatterns.length; j++) {
 			    var numberMatch = tokenText.match(numberPatterns[j][1]);
 			    if (numberMatch) {
-				tokens.push([numberPatterns[j][0], 
-					     tokenText,
-					     new Loc(num(offset),
-						     num(line),
-						     num(column),
-						     num(wholeMatch.length), 
-						     source)]);
+				tokens.push({type: numberPatterns[j][0],
+					     text: tokenText,
+					     loc: new Loc(num(offset),
+							  num(line),
+							  num(column),
+							  num(wholeMatch.length), 
+							  source)});
 				isNumber = true;
 				break;
 			    }
 			}
 			if (! isNumber) {
-			    tokens.push(["symbol", 
-					 tokenText,
-					 new Loc(num(offset),
-						 num(line),
-						 num(column),
-						 num(wholeMatch.length), 
-						 source)]);
+			    tokens.push({type: "symbol", 
+					 text: tokenText,
+					 loc: new Loc(num(offset),
+						      num(line),
+						      num(column),
+						      num(wholeMatch.length), 
+						      source)});
 			}
 		    } else if (patternName != 'whitespace' && patternName != 'comment') {
-			tokens.push([patternName, 
-				     tokenText,
-				     new Loc(num(offset),
-					     num(line),
-					     num(column),
-					     num(wholeMatch.length), 
-					     source)]);
+			tokens.push({type: patternName, 
+				     text: tokenText,
+				     loc: new Loc(num(offset),
+						  num(line),
+						  num(column),
+						  num(wholeMatch.length), 
+						  source)});
 		    }
 
 		    offset = offset + wholeMatch.length;
@@ -176,6 +215,13 @@ goog.provide('plt.reader');
     }
 
 
+
+    //////////////////////////////////////////////////////////////////////
+
+    // Parser
+
+
+
     // readSchemeExpressions: string string -> (listof stx)
     var readSchemeExpressions = function(s, source) {
 	var stxLoc = stx_dash_loc;
@@ -183,17 +229,16 @@ goog.provide('plt.reader');
 	var tokensAndError = tokenize(s, source);
 	var tokens = tokensAndError[0];
 
-	var lastToken = undefined;
 
 	if (tokensAndError[1].length > 0) {
-	    throw new plt.types.MobyParserError(
-		"Error while tokenizing: the rest of the stream is: " +
-		    tokensAndError[1],
-		new Loc(num(s.length - tokensAndError[1].length),
-			num(countLines(s.substring(0, s.length - tokensAndError[1].length))),
-			num(computeColumn(s.substring(0, s.length - tokensAndError[1].length), 0)),
-			num(tokensAndError[1].length),
-			source));
+	    var aLoc = new Loc(num(s.length - tokensAndError[1].length),
+ 			       num(countLines(s.substring(0, s.length - tokensAndError[1].length))),
+ 			       num(computeColumn(s.substring(0, s.length - tokensAndError[1].length), 0)),
+ 			       num(tokensAndError[1].length),
+ 			       source);
+	    plt.types.throwMobyError(aLoc, 
+				     "make-moby-error-type:unrecognized-lexical-token",
+				     [plt.types.Symbol.makeInstance(tokensAndError[1])]);
 	}
 	
 	var quoteSymbol = plt.types.Symbol.makeInstance("quote");
@@ -202,38 +247,31 @@ goog.provide('plt.reader');
 	var unquoteSplicingSymbol = plt.types.Symbol.makeInstance("unquote-splicing");
 	var empty = plt.types.Empty.EMPTY;
 
+
 	var isType = function(type) {
-	    return (tokens.length > 0 && tokens[0][0] == type);
+	    return (tokens.length > 0 && tokens[0].type == type);
 	}
 	
-	var eat = function(expectedType) {
-	    if (tokens.length == 0) {
-		if (lastToken) { 
-		    throw new plt.types.MobyParserError(
-			"token stream exhausted while trying to eat " +
-			    expectedType,
-			lastToken[2]);
-		} else {
-		    throw new plt.types.MobyParserError(
-			"token stream exhausted while trying to eat " +
-			    expectedType,
-			new Loc(num(0), 
-				num(0), 
-				num(0),
-				num(s.length), 
-				source));
-		}
-	    }
-	    var t = tokens.shift();
-	    lastToken = t;
-	    if (t[0] == expectedType) {
-		return t;
-	    } else {
-		throw new plt.types.MobyParserError(
-		    "Unexpected token " + t,
-		    t[2]);
-	    }
+
+	// peek: -> (token | false)
+	var peek = function() {
+	    if (tokens.length > 0) 
+		return tokens[0];
+	    else
+		return false;
 	}
+
+
+	// eat: -> token 
+	var eat = function() {
+	    var t = tokens.shift();
+	    return t;
+	}
+
+
+
+
+
 
 
 	// NOTE: we define things in this funny way because of a bug in 
@@ -245,16 +283,22 @@ goog.provide('plt.reader');
 	readQuoted = function(quoteChar, quoteSymbol) {
 	    var leadingQuote = eat(quoteChar);
 	    var quoted = readExpr();
+	    if (quoted === false) {
+		plt.types.throwMobyError(leadingQuote.loc,
+					 "make-moby-error-type:missing-expression",
+					 [plt.types.Symbol.makeInstance(leadingQuote.text)]);
+	    }
+
 	    return datumToStx(plt.types.Cons.makeInstance(
-		datumToStx(quoteSymbol, leadingQuote[2]),
+		datumToStx(quoteSymbol, leadingQuote.loc),
 		plt.types.Cons.makeInstance(quoted, empty)),
-			    new Loc(Loc_dash_offset(leadingQuote[2]),
-				    Loc_dash_line(leadingQuote[2]),
-				    Loc_dash_column(leadingQuote[2]),
-				    (plt.types.NumberTower.add(plt.types.NumberTower.subtract(Loc_dash_offset(stxLoc(quoted)),
-											      Loc_dash_offset(leadingQuote[2])),
-							       Loc_dash_span(stxLoc(quoted)))),
-				    source));
+			      new Loc(Loc_dash_offset(leadingQuote.loc),
+				      Loc_dash_line(leadingQuote.loc),
+				      Loc_dash_column(leadingQuote.loc),
+				      (plt.types.NumberTower.add(plt.types.NumberTower.subtract(Loc_dash_offset(stxLoc(quoted)),
+												Loc_dash_offset(leadingQuote.loc)),
+								 Loc_dash_span(stxLoc(quoted)))),
+				      source));
 	};
 
 	var getParenRShape = function(lparen) {
@@ -262,7 +306,6 @@ goog.provide('plt.reader');
 	    case '(': return ')';
 	    case '[' : return ']';
 	    case '{' : return '}';
-	    default: throw new Error();
 	    }
 	}
 
@@ -286,14 +329,14 @@ goog.provide('plt.reader');
 		    var whole = plt.types.Rational.makeInstance(parseInt(decimalMatch[1] || "0") || 0);
 		    if (decimalMatch[1].match(/-/)) {
 			return plt.types.NumberTower.subtract(whole,
-			  plt.types.Rational.makeInstance(
-			      parseInt(decimalMatch[2]), 
-			      Math.pow(10, decimalMatch[2].length)));
+							      plt.types.Rational.makeInstance(
+								  parseInt(decimalMatch[2]), 
+								  Math.pow(10, decimalMatch[2].length)));
 		    } else {
 			return plt.types.NumberTower.add(whole,
-			  plt.types.Rational.makeInstance(
-			      parseInt(decimalMatch[2]), 
-			      Math.pow(10, decimalMatch[2].length)));
+							 plt.types.Rational.makeInstance(
+							     parseInt(decimalMatch[2]), 
+							     Math.pow(10, decimalMatch[2].length)));
 		    }
 		} else {
 		    return plt.types.FloatPoint.makeInstance(parseFloat(text));
@@ -316,49 +359,65 @@ goog.provide('plt.reader');
 	};
 
 
-	// readExpr: -> stx
+
+	// readExpr: (-> void) -> (or stx false)
+	// Returns a syntax, or false if the stream gets exhausted before then.
 	readExpr = function() {
-	    if (tokens.length == 0) {
-		if (lastToken) { 
-		    throw new plt.types.MobyParserError(
-			"Parse broke with empty token stream",
-			lastToken[2]);
-		} else {
-		    throw new plt.types.MobyParserError(
-			"Parse broke with empty token stream",
-			new Loc(num(0), num(0), num(0), num(s.length), source));
-		}
+	    if (peek() === false) {
+		return false;
 	    }
 
-	    switch(tokens[0][0]) {
+	    switch(peek().type) {
 
 	    case '(': 
 		var lparen = eat('(');
-		var lshape = lparen[1];
-		var rshape = getParenRShape(lparen[1]);
+		var lshape = lparen.text;
+		var rshape = getParenRShape(lparen.text);
 		var result = readExprs();
-		if (tokens.length == 0) {
-		    throw new plt.types.MobyParserError(
-			"Expected a " + rshape + " to close " + lshape,
-			lparen[2]);
-		} else if (tokens[0][1] != rshape) {
-		    throw new plt.types.MobyParserError(
-			"Expected a " + rshape + " to close " + lshape,
-			tokens[0][2]);
+		if (peek() === false) {
+		    plt.types.throwMobyError(lparen.loc,
+					     "make-moby-error-type:unclosed-parentheses",
+					     [plt.types.Symbol.makeInstance(lshape), 
+					      plt.types.Symbol.makeInstance(rshape)]);
+		} else if (peek().text != rshape) {
+		    plt.types.throwMobyError(peek().loc,
+					     "make-moby-error-type:unbalanced-parentheses",
+					     [plt.types.Symbol.makeInstance(lshape), 
+					      plt.types.Symbol.makeInstance(rshape),
+					      plt.types.Symbol.makeInstance(peek().text),
+					      lparen.loc]);
+		} else {
+		    var rparen = eat(')');
+		    return datumToStx(
+			result,
+			new Loc(Loc_dash_offset(lparen.loc),
+				Loc_dash_line(lparen.loc),
+				Loc_dash_column(lparen.loc),
+				plt.types.NumberTower.add(
+				    plt.types.NumberTower.subtract(
+					Loc_dash_offset(rparen.loc),
+					Loc_dash_offset(lparen.loc)), 
+				    plt.types.Rational.ONE),
+				source));
 		}
-		var rparen = eat(')');
-		return datumToStx(
-		    result,
-		    new Loc(Loc_dash_offset(lparen[2]),
-			    Loc_dash_line(lparen[2]),
-			    Loc_dash_column(lparen[2]),
-			    plt.types.NumberTower.add(plt.types.NumberTower.subtract(Loc_dash_offset(rparen[2]), Loc_dash_offset(lparen[2])), plt.types.Rational.ONE),
-			    source));
 
 	    case '#;':
 		var hashcomment = eat('#;');
 		var skippingExpr = readExpr();
-		return readExpr();
+		if (skippingExpr) {
+		    var nextExpr = readExpr();
+		    if (nextExpr) {
+			return nextExpr;
+		    } else {
+			return false;
+		    }
+		} else {
+		    plt.types.throwMobyError(
+			hashcomment.loc,
+			"make-moby-error-type:missing-expression",
+			[plt.types.Symbol.makeInstance(hashcomment.text)]);
+		}
+
 		
 	    case '\'':
 		return readQuoted("'", quoteSymbol);
@@ -375,23 +434,23 @@ goog.provide('plt.reader');
 
 	    case 'number':
 		var t = eat('number');
-		var exactnessMatch = t[1].match(/^(\#[ie])(.+)$/);
+		var exactnessMatch = t.text.match(/^(\#[ie])(.+)$/);
 		if (exactnessMatch) {
 		    if (exactnessMatch[1] == "#i") {
 			return datumToStx(parseBasicNumber(exactnessMatch[2], false),
-					t[2]);
+					  t.loc);
 		    } else {
 			return datumToStx(parseBasicNumber(exactnessMatch[2], true),
-					t[2]);
+					  t.loc);
 		    }
 		} else {
-		    return datumToStx(parseBasicNumber(t[1], true),
-				    t[2]);
+		    return datumToStx(parseBasicNumber(t.text, true),
+				      t.loc);
 		}
 
 	    case 'complex':
 		var t = eat('complex');
-		var complexMatch = t[1].match(/^((?:\#[ei])?)([+\-]?(?:\d+\/\d+|\d+\.\d+|\d+\.|\.\d+|\d+)?)([+\-](?:\d+\/\d+|\d+\.\d+|\d+\.|\.\d+|\d+))i/);
+		var complexMatch = t.text.match(/^((?:\#[ei])?)([+\-]?(?:\d+\/\d+|\d+\.\d+|\d+\.|\.\d+|\d+)?)([+\-](?:\d+\/\d+|\d+\.\d+|\d+\.|\.\d+|\d+))i/);
 		var exactness = (complexMatch[1] == "#i" ? false : true);
 		var a = (complexMatch[2] != "" ?
 			 parseBasicNumber(complexMatch[2], exactness) :
@@ -404,49 +463,53 @@ goog.provide('plt.reader');
 
 	    case 'string':
 		var t = eat('string');
-		return datumToStx(plt.types.String.makeInstance(t[1]),
-				t[2]);
+		return datumToStx(plt.types.String.makeInstance(t.text),
+				  t.loc);
 	    case 'char':
 		var t = eat('char');
-		if (t[1] == 'newline') {
-		    return datumToStx(plt.types.Char.makeInstance('\n'), t[2]);
-		} else if (t[1] == 'backspace') {
+		if (t.text == 'newline') {
+		    return datumToStx(plt.types.Char.makeInstance('\n'), t.loc);
+		} else if (t.text == 'backspace') {
 		    // FIXME: add more character constants.
 		    // See: http://docs.plt-scheme.org/reference/reader.html#%28idx._%28gentag._172._%28lib._scribblings/reference/reference..scrbl%29%29%29
-		    return datumToStx(plt.types.Char.makeInstance(String.fromCharCode(8)), t[2]);
+		    return datumToStx(plt.types.Char.makeInstance(String.fromCharCode(8)), t.loc);
 		} else {
-		    return datumToStx(plt.types.Char.makeInstance(t[1]), t[2]);
+		    return datumToStx(plt.types.Char.makeInstance(t.text), t.loc);
 		}
 
 	    case 'symbol':
 		var t = eat('symbol');
-		if (t[1] == '.') {
-		    throw new plt.types.MobyParserError
-		    ("Dotted pairs are not currently accepted by Moby", t[2]);
+		if (t.text == '.') {
+		    plt.types.throwMobyError(t.loc,
+					     "make-moby-error-type:unsupported-lexical-token",
+					     [plt.types.Symbol.makeInstance(t.text)])
 		}
-		return datumToStx(plt.types.Symbol.makeInstance(t[1]), t[2]);
+		return datumToStx(plt.types.Symbol.makeInstance(t.text), t.loc);
 
+	    case ')':
+		return false;
+		
 	    default:
-		throw new plt.types.MobyParserError
-		("Parse broke with token stream " + tokens, 
-		 tokens[0][2]);
+		plt.types.throwMobyError(peek().loc,
+					 "make-moby-error-type:unrecognized-lexical-token",
+					 [plt.types.Symbol.makeInstance(peek().text)]);
 	    }
 	};
 
 
 
 	// readExprs: (listof stx)
+	// Reads a list of expressions up to a closing paren.
 	readExprs = function() {
 	    var result = plt.types.Empty.EMPTY;
 	    while (true) {
-		if (tokens.length == 0 || isType(')')) {
+		if (peek() == false || isType(')')) {
 		    break;
-		} else if (isType('#;')){
-		    eat('#;');
-		    var skippingExpr = readExpr();
 		} else {
 		    var nextElt = readExpr();
-		    result = plt.types.Cons.makeInstance(nextElt, result);
+		    if (nextElt) {
+			result = plt.types.Cons.makeInstance(nextElt, result);
+		    }
 		}
 	    }
 	    return plt.types.Cons.reverse(result);
@@ -454,11 +517,43 @@ goog.provide('plt.reader');
 	
 
 	var result = readExprs();
+
 	if (tokens.length > 0) {
-	    throw new plt.types.MobyParserError
-	    ("More elements in the program's token stream than expected: "+
-	     "the next unconsumed token is: "  + tokens[0][1],
-	     tokens[0][2])
+	    switch (peek().type) {
+	    case '(':
+		plt.types.throwMobyError(peek().loc,
+					 "make-moby-error-type:unclosed-parentheses",
+					 [plt.types.Symbol.makeInstance(peek().text),
+					  plt.types.Symbol.makeInstance(getParenRShape(peek().text))]);
+	    case ')':
+		plt.types.throwMobyError(peek().loc,
+					 "make-moby-error-type:closing-parenthesis-before-opener",
+					 [plt.types.Symbol.makeInstance(peek().text)]);
+
+	    case "'":
+	    case "`":
+	    case ",":
+	    case ",@":
+		plt.types.throwMobyError(peek().loc,
+					 "make-moby-error-type:missing-expression",
+					 [plt.types.Symbol.makeInstance(peek().text)]);
+
+	    case 'whitespace':
+	    case '#;':
+	    case 'comment':
+	    case "char":
+	    case "string":
+	    case "symbol-or-number":
+	    default:
+		// This should never happen, given that whitespace
+		// is filtered out, and the other token types are expressions.
+		// Still, we'd better make sure!
+		plt.types.throwMobyError(peek().loc,
+					 "make-moby-error-type:generic-syntactic-error",
+					 ["The parse unexpectedly failed as it was at " +
+					  peek().text + ".",
+					  plt.types.Empty.EMPTY]);
+	    }
 	}
 	return result;
     }

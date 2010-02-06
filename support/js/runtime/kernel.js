@@ -16,11 +16,6 @@ goog.provide('plt.Kernel');
 
     var NumberTower = plt.types.NumberTower;
 
-    var MobyError = plt.types.MobyError;
-    var MobyParserError = plt.types.MobyParserError;
-    var MobySyntaxError = plt.types.MobySyntaxError;
-    var MobyRuntimeError = plt.types.MobyRuntimeError;
-    var MobyTestingError = plt.types.MobyTestingError;
 
 
 
@@ -69,6 +64,30 @@ goog.provide('plt.Kernel');
 
 
 
+    //////////////////////////////////////////////////////////////////////
+    var getExternalModuleValue = function(module, name) {
+
+	// munge: string -> string
+	var munge = function(name) {
+	    var C = plt.Kernel.invokeModule("moby/compiler").EXPORTS;
+	    return (C.identifier_dash__greaterthan_munged_dash_java_dash_identifier(
+		plt.types.Symbol.makeInstance(name))).toString();
+	}
+	
+	// getModule: string -> module
+	// Returns a module that knows how to map scheme names to javascript
+	// names.
+	var getModule = function(name) {
+	    var theModule = plt.Kernel.invokeModule(name);
+	    var exports = theModule.EXPORTS;
+	    return {
+		theModule: theModule,
+		getFunction: function(n) {
+		    return exports[munge(n)];
+		}};
+	}
+	return getModule(module).getFunction(name);
+    };
 
 
 
@@ -109,6 +128,12 @@ goog.provide('plt.Kernel');
     
     //////////////////////////////////////////////////////////////////////
 
+
+
+    var throwMobyError = plt.types.throwMobyError;
+
+
+    //////////////////////////////////////////////////////////////////////
 
 
 
@@ -692,21 +717,19 @@ goog.provide('plt.Kernel');
 		    Math.atan2(NumberTower.toFloat(x),
 			       NumberTower.toFloat(args[0])));
 	    } else {
-		var E = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		var A = plt.Kernel.invokeModule("moby/runtime/arity-struct").EXPORTS;
-		throw E.make_dash_moby_dash_error(
-		    locHashToLoc(plt.Kernel.lastLoc),
-		    E.make_dash_moby_dash_error_dash_type_colon_application_dash_arity(
-			"atan",
-			A.make_dash_arity_colon_mixed(
-			    plt.types.Cons.makeInstance(
-				A.make_dash_arity_colon_fixed(
-				    plt.types.Rational.ONE),
-				plt.types.Cons.makeInstance(
-				    A.make_dash_arity_colon_fixed(
-					plt.types.Rational.TWO),
-				    plt.types.Empty.EMPTY))),
-			plt.types.Rational.makeInstance(args.length)));
+		throwMobyError(locHashToLoc(plt.Kernel.lastLoc),
+			       "make-moby-error-type:application-arity",
+			       [plt.types.Symbol.makeInstance("atan"),
+				A.make_dash_arity_colon_mixed(
+				   plt.types.Cons.makeInstance(
+				       A.make_dash_arity_colon_fixed(
+					   plt.types.Rational.ONE),
+				       plt.types.Cons.makeInstance(
+					   A.make_dash_arity_colon_fixed(
+					       plt.types.Rational.TWO),
+					   plt.types.Empty.EMPTY))),
+				plt.types.Rational.makeInstance(args.length)]);
 	    }
 	},
 	
@@ -742,12 +765,14 @@ goog.provide('plt.Kernel');
 	
 	cosh : function(x) {
 	    check(x, isNumber, "cosh", "number", 1);
-	    return this._plus_([this.exp(x), this.exp(x.minus())]).half();
+	    return NumberTower.half(NumberTower.add(NumberTower.exp(x), 
+						    NumberTower.exp(NumberTower.minus(x))));
 	},
 	
 	sinh : function(x) {
 	    check(x, isNumber, "sinh", "number", 1);
-	    return NumberTower.subtract(this.exp(x), this.exp(x.minus())).half();
+	    return NumberTower.half(NumberTower.subtract(NumberTower.exp(x),
+							 NumberTower.exp(NumberTower.minus(x))));
 	},
 	
 	denominator : function(x) {
@@ -772,12 +797,12 @@ goog.provide('plt.Kernel');
 	
 	positive_question_ : function(x){
 	    check(x, isNumber, "positive?", "number", 1);
-	    return this._greaterthan_(x, plt.types.Rational.ZERO, []);
+	    return NumberTower.greaterThan(x, plt.types.Rational.ZERO);
 	},
 	
 	negative_question_ : function(x){
 	    check(x, isNumber, "negative?", "number", 1);
-	    return this._lessthan_(x, plt.types.Rational.ZERO, []);
+	    return NumberTower.lessThan(x, plt.types.Rational.ZERO);
 	},
 	
 	imag_dash_part : function(x){
@@ -842,9 +867,9 @@ goog.provide('plt.Kernel');
 	
 	sgn : function(x){
 	    check(x, isNumber, "sgn", "number", 1);
-	    if (this.positive_question_(x).valueOf())
+	    if (NumberTower.greaterThan(x, plt.types.Rational.ZERO))
 		return plt.types.Rational.ONE;
-	    if (this.negative_question_(x).valueOf())
+	    if (NumberTower.lessThan(x, plt.types.Rational.ZERO))
 		return plt.types.Rational.NEGATIVE_ONE;
 	    else
 		return plt.types.Rational.ZERO;
@@ -1067,7 +1092,7 @@ goog.provide('plt.Kernel');
 	list_star_ : function(items, otherItems){
 	    var lastListItem = otherItems.pop();
 	    if (lastListItem == undefined || ! lastListItem instanceof plt.types.Cons) {
-		var S = plt.Kernel.invokeModule("moby/runtime/stx").EXPORTS;
+		var S = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		plt.Kernel.throwTypeError("list*",
 					  otherItems.length + 2,
 					  S.make_dash_moby_dash_expected_colon_list(),
@@ -1084,7 +1109,7 @@ goog.provide('plt.Kernel');
 	    var len = 0;
 	    for (; plt.Kernel._lessthan_(i, x,[]); i = plt.Kernel.add1(i)) {
 		if (lst.isEmpty()) {
-		    var S = plt.Kernel.invokeModule("moby/runtime/stx").EXPORTS;
+		    var S = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		    throw S.make_dash_moby_dash_error(
 			locHashToLoc(plt.Kernel.lastLoc),
 			S.make_dash_moby_dash_error_dash_type_colon_index_dash_out_dash_of_dash_bounds(
@@ -1291,8 +1316,8 @@ goog.provide('plt.Kernel');
 	string_dash_ref : function(str, i){
 	    check(str, isString, "string-ref", "string", 1);
 	    check(i, isNatural, "string-ref", "natural", 2);
-	    if (i.toFixnum() >= str.length) {
-		var S = plt.Kernel.invokeModule("moby/runtime/stx").EXPORTS;
+	    if (NumberTower.toFixnum(i) >= str.length) {
+		var S = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		throw S.make_dash_moby_dash_error(
 		    locHashToLoc(plt.Kernel.lastLoc),
 		    S.make_dash_moby_dash_error_dash_type_colon_index_dash_out_dash_of_dash_bounds(
@@ -1307,7 +1332,7 @@ goog.provide('plt.Kernel');
 	    check(str, isString, "string-ith", "string", 1);
 	    check(i, isNatural, "string-ith", "natural", 2);
 	    if (i.toFixnum() >= str.length) {
-		var S = plt.Kernel.invokeModule("moby/runtime/stx").EXPORTS;
+		var S = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		throw S.make_dash_moby_dash_error(
 		    locHashToLoc(plt.Kernel.lastLoc),
 		    S.make_dash_moby_dash_error_dash_type_colon_index_dash_out_dash_of_dash_bounds(
@@ -1334,24 +1359,22 @@ goog.provide('plt.Kernel');
 	    check(begin, isNatural, "substring", "natural", 2);
 	    check(end, isNatural, "substring", "natural", 3);
 	    if (begin.toFixnum() > end.toFixnum()) {
-		var S = plt.Kernel.invokeModule("moby/runtime/stx").EXPORTS;
+		var S = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		throw S.make_dash_moby_dash_error(
 		    locHashToLoc(plt.Kernel.lastLoc),
 		    S.make_dash_moby_dash_error_dash_type_colon_index_dash_out_dash_of_dash_bounds(
 			begin,
 			plt.types.Rational.makeInstance(str.length),
 			end));
-		//		throw new MobyRuntimeError("substring: begin > end");
 	    }
 	    if (end.toFixnum() > str.length) {
-		var S = plt.Kernel.invokeModule("moby/runtime/stx").EXPORTS;
+		var S = plt.Kernel.invokeModule("moby/runtime/error-struct").EXPORTS;
 		throw S.make_dash_moby_dash_error(
 		    locHashToLoc(plt.Kernel.lastLoc),
 		    S.make_dash_moby_dash_error_dash_type_colon_index_dash_out_dash_of_dash_bounds(
 			begin,
 			plt.types.Rational.makeInstance(str.length),
 			end));
-		//              throw new MobyRuntimeError("substring: end > length");
 	    }
 	    return String.makeInstance(str.substring(begin.toFixnum(), end.toFixnum()));
 	},
@@ -1689,13 +1712,15 @@ goog.provide('plt.Kernel');
 	if (procedureArityIncludes(f, argArray.length)) {
 	    return f(argArray);
 	} else {
-	    throw new MobyRuntimeError(
-		plt.Kernel.format(
+	    throwMobyError(
+		false,
+		"make-moby-error-type:generic-runtime-error",
+		[plt.Kernel.format(
 		    "~a: expects ~a, given ~a: ~s", 
 		    [f,
 		     procedureArityDescription(f),
 		     argArray.length,
-		     plt.Kernel.list(argArray)]));
+		     plt.Kernel.list(argArray)])]);
 	}
     };
 
@@ -1939,23 +1964,30 @@ goog.provide('plt.Kernel');
 		return "\n";
 	    } else if (s == '~s' || s == "~S") {
 		if (buffer.length == 0) {
-		    throw new MobyRuntimeError(
-			"format: fewer arguments passed than expected");
+		    throwMobyError(false,
+				   "make-moby-error-type:generic-runtime-error",
+				   
+				   ["format: fewer arguments passed than expected"]);
 		}
 		return plt.types.toWrittenString(buffer.shift());
 	    } else if (s == '~a' || s == "~A") {
 		if (buffer.length == 0) {
-		    throw new MobyRuntimeError(
-			"format: fewer arguments passed than expected");
+		    throwMobyError(false,
+				   "make-moby-error-type:generic-runtime-error",
+				   ["format: fewer arguments passed than expected"]);
 		}
 		return plt.types.toDisplayedString(buffer.shift());
 	    } else {
-		throw new MobyRuntimeError("Unimplemented format " + s);
+		throwMobyError(false,
+			       "make-moby-error-type:generic-runtime-error",
+			       ["Unimplemented format " + s]);
 	    }
 	}
 	var result = plt.types.String.makeInstance(formatStr.replace(pattern, f));
 	if (buffer.length > 0) {
-	    throw new MobyRuntimeError("format: More arguments passed than expected");
+	    throwMobyError(false,
+			   "make-moby-error-type:generic-runtime-error",
+			   ["format: More arguments passed than expected"]);
 	}
 	return result;
     }
@@ -2148,7 +2180,9 @@ goog.provide('plt.Kernel');
     plt.Kernel.error = function(name, msg) {
 	check(name, isSymbol, "error", "symbol", 1);
 	check(msg, isString, "error", "string", 2);
-	throw new MobyRuntimeError(plt.Kernel.format("~a: ~a", [name, msg]).toString());
+	throwMobyError(false, 
+		       "make-moby-error-type:generic-runtime-error",
+		       [plt.Kernel.format("~a: ~a", [name, msg]).toString()]);
     };
 
 
@@ -2254,49 +2288,67 @@ goog.provide('plt.Kernel');
 
 
 
-    plt.Kernel.check_dash_expect = function(testThunk, expectedThunk) {
+
+
+
+
+
+    plt.Kernel.check_dash_expect = function(testThunk, expectedThunk, locSexp) {
 	var val = testThunk([]);
 	var expectedVal = expectedThunk([]);
 	if (! plt.Kernel.equal_question_(val, expectedVal)) {
-	    throw new MobyTestingError(
-		plt.Kernel.format("~s doesn't match the expected value ~s",
-				  [val, expectedVal]));
+	    throwMobyError(locSexp, 
+			   "make-moby-error-type:check-expect",
+			   [expectedVal, val]);
 	}
     };
+
 
     plt.Kernel.EXAMPLE = plt.Kernel.check_dash_expect;
 
 
-    plt.Kernel.check_dash_within = function(testThunk, expectedThunk, boundsThunk) {
+    plt.Kernel.check_dash_within = function(testThunk, expectedThunk, boundsThunk, locSexp) {
 	var val = testThunk([]);
 	var expectedVal = expectedThunk([]);
 	var boundsVal = boundsThunk([]);
 	if (! plt.Kernel._equal__tilde_(val, expectedVal, boundsVal)) {
-	    throw new MobyTestingError(
-		plt.Kernel.format("~s doesn't match the expected value ~s within ~s",
-				  [val, expectedVal, boundsVal]));
+	    throwMobyError(locSexp, 
+			   "make-moby-error-type:check-within",
+			   [expectedVal,
+			    val,
+			    boundsVal]);
 	}
     };
 
-    plt.Kernel.check_dash_error = function(testThunk, msgThunk) {
-	var msg = msgThunk([]);
+    plt.Kernel.check_dash_error = function(testThunk, msgThunk, locSexp) {
+	var msg = msgThunk();
 	var val;
 	try {
-	    val = testThunk([]);
+	    val = testThunk();
 	} catch (e) {
-	    if (! plt.Kernel.equal_question_(e.msg, msg)) {
-		throw new MobyTestingError(
-		    plt.Kernel.format(
-			"check-error encountered the error ~s instead of the expected error ~s.",
-			[e.msg, msg]));
+	    var isMobyError = getExternalModuleValue("moby/runtime/error-struct",
+						     "moby-error?");
+	    var getDom = getExternalModuleValue("moby/runtime/error-struct-to-dom",
+						"moby-error-struct-to-dom-sexp");
+	    var getDomContent = getExternalModuleValue("moby/runtime/dom-helpers",
+						       "dom-string-content");
+	    
+	    if ((isMobyError(e) && 
+		 getDomContent(getDom(e)) != msg)) {
+		throwMobyError(locSexp,
+			       "make-moby-error-type:check-error",
+			       [msg, getDomContent(getDom(e))]);
+	    } else if (e.msg && (e.msg != msg)) {
+		throwMobyError(locSexp,
+			       "make-moby-error-type:check-error",
+			       [msg, e.msg])
 	    } else {
 		return;
 	    }
 	}
-	throw new MobyTestingError(
-	    plt.Kernel.format(
-		"check-error expected the error ~s, but instead received the value ~s.",
-		[msg, val]))
+	throwMobyError(locSexp, 
+		       "make-moby-error-type:check-error-no-error",
+		       [msg, val]);
     };
 
 
@@ -2393,6 +2445,8 @@ goog.provide('plt.Kernel');
 		locHash.id);
 	}
     };
+    plt.Kernel.locHashToLoc = locHashToLoc;
+
 
     // throwTypeError: string fixnum (string | ExpectedValue)  schemevalue -> MobyError value
     // Helper function to throw a type error.
@@ -2446,14 +2500,6 @@ goog.provide('plt.Kernel');
     plt.Kernel.check = check;
     plt.Kernel.checkList = checkList;
     plt.Kernel.checkListof = checkListof;
-
-
-    // Expose the error classes.
-    plt.Kernel.MobyError = plt.types.MobyError;
-    plt.Kernel.MobyParserError = plt.types.MobyParserError;
-    plt.Kernel.MobySyntaxError = plt.types.MobySyntaxError;
-    plt.Kernel.MobyRuntimeError = plt.types.MobyRuntimeError;
-    plt.Kernel.MobyTestingError = plt.types.MobyTestingError;
 
 
 

@@ -32,10 +32,22 @@ var isMobyError = function(x) {
     var result = errorStructModule.getFunction("moby-error?")(x);
     return result;
 }
+
+var isMobyErrorType = function(x) {
+    var result = errorStructModule.getFunction("moby-error-type?")(x);
+    return result;
+}
+
 var mobyErrorType = function(x) {
     var result = errorStructModule.getFunction("moby-error-error-type")(x);
     return result;
 }
+
+var mobyErrorLoc = function(x) {
+    var result = errorStructModule.getFunction("moby-error-location")(x);
+    return result;
+}
+
 
 var extract = function(functionName) {
     return errorStructModule.getFunction(functionName);
@@ -61,6 +73,10 @@ var isUnsupportedExpressionForm =
     extract("moby-error-type:unsupported-expression-form?");
 var isUnclosedParentheses =
     extract("moby-error-type:unclosed-parentheses?");
+var isClosingParenthesisBeforeOpener =
+    extract("moby-error-type:closing-parenthesis-before-opener?");
+var isUnbalancedParenthesis =
+    extract("moby-error-type:unbalanced-parentheses?");
 var isMissingExpression =
     extract("moby-error-type:missing-expression?");
 var isDuplicateIdentifier = 
@@ -105,6 +121,43 @@ var isIfTooFewElements =
     extract("moby-error-type:if-too-few-elements?");
 var isIfTooManyElements = 
     extract("moby-error-type:if-too-many-elements?");
+var isBeginBodyEmpty = 
+    extract("moby-error-type:begin-body-empty?");
+var isBooleanChainTooFewElements = 
+    extract("moby-error-type:boolean-chain-too-few-elements?");
+var isExpectedListOfIdentifiers =
+    extract("moby-error-type:expected-list-of-identifiers?");
+var isLambdaTooFewElements =
+    extract("moby-error-type:lambda-too-few-elements?");
+var isLambdaTooManyElements =
+    extract("moby-error-type:lambda-too-many-elements?");
+var isQuoteTooFewElements = 
+    extract("moby-error-type:quote-too-few-elements?");
+var isQuoteTooManyElements = 
+    extract("moby-error-type:quote-too-many-elements?");
+var isQuasiquoteTooFewElements = 
+    extract("moby-error-type:quasiquote-too-few-elements?");
+var isQuasiquoteTooManyElements = 
+    extract("moby-error-type:quasiquote-too-many-elements?");
+var isUnquoteTooFewElements = 
+    extract("moby-error-type:unquote-too-few-elements?");
+var isUnquoteTooManyElements = 
+    extract("moby-error-type:unquote-too-many-elements?");
+var isUnquoteSplicingTooFewElements = 
+    extract("moby-error-type:unquote-splicing-too-few-elements?");
+var isUnquoteSplicingTooManyElements = 
+    extract("moby-error-type:unquote-splicing-too-many-elements?");
+var isCheckExpect = 
+    extract("moby-error-type:check-expect?");
+var isCheckWithin = 
+    extract("moby-error-type:check-within?");
+var isCheckError = 
+    extract("moby-error-type:check-error?");
+var isCheckErrorNoError = 
+    extract("moby-error-type:check-error-no-error?");
+
+
+
 
 
 //////////////////////////////////////////////////////////////////////
@@ -116,8 +169,9 @@ JsUnitTest.Unit.Testcase.prototype.assertMobyRaise = function(predicate, thunk) 
 	thunk();
 	this.fail("assertMobyRaise: expected exception hasn't been raised");
     } catch(e) {
-	this.assert(isMobyError(e));
-	this.assert(predicate(mobyErrorType(e)));
+	this.assert(isMobyError(e), "not a moby error");
+	this.assert(isMobyErrorType(mobyErrorType(e)), "not a moby error type");
+	this.assert(predicate(mobyErrorType(e)), "predicate fails");
     }
 };
 
