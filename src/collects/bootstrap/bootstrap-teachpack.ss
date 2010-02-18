@@ -100,7 +100,7 @@
 ; handle update-player where only the x is passed in, and where a number or posn is returned
 (define (keypress w key update-player)
   (cond
-    [(string=? key " ") 
+    [(or (string=? key " ") (string=? key "space"))
      (make-world (world-objects w)
                  (world-targets w)
                  (world-player w)
